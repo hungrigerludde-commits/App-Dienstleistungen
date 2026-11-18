@@ -14,16 +14,6 @@
         "ITSAppUsesNonExemptEncryption": false
       }
     },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false,
-      "package": "de.stadthelfer.app"
-    },
     "web": {
       "favicon": "./assets/favicon.png",
       "output": "single"
@@ -34,6 +24,10 @@
     "scheme": "stadthelfer",
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "platforms": [
+      "ios",
+      "web"
+    ]
   }
 }

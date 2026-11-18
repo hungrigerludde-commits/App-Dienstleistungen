@@ -1,6 +1,6 @@
 # StadtHelfer – Schüler helfen in ihrer Stadt
 
-Eine App für iPhone und Android. Schülerinnen und Schüler ab 14 Jahren bieten darüber Hilfe an, zum Beispiel
+Eine App für das iPhone. Schülerinnen und Schüler ab 14 Jahren bieten darüber Hilfe an, zum Beispiel
 Nachhilfe, Musikunterricht, Rasen mähen, Hecke schneiden, Fenster putzen oder Einkäufe. Privatpersonen
 in der Stadt buchen sie.
 
@@ -44,7 +44,7 @@ also auch dann, wenn jemand die App umgeht.
 
 ## Technik
 
-- **App:** [Expo](https://expo.dev) (React Native) mit TypeScript und Expo Router. Ein gemeinsamer Code für iOS, Android und Web.
+- **App:** [Expo](https://expo.dev) (React Native) mit TypeScript und Expo Router. Ziel ist das iPhone; im Browser läuft sie nur zum Testen. Android ließe sich später mit demselben Code ergänzen.
 - **Backend:** [Supabase](https://supabase.com) mit Postgres-Datenbank, Login und Echtzeit-Chat. Der kostenlose Tarif reicht für den Start.
 - **Build und Upload in den App Store:** [EAS](https://expo.dev/eas). **Ein eigener Mac ist nicht nötig.**
 
@@ -102,6 +102,7 @@ Die App öffnet sich sofort, ganz ohne App Store. Mit `npx expo start --web` lä
 
 **Voraussetzungen**
 - **Apple Developer Program**, 99 € pro Jahr: [developer.apple.com/programs](https://developer.apple.com/programs/).
+  Der Kontoinhaber muss **volljährig** sein. Bei Minderjährigen schließt ein Elternteil die Mitgliedschaft ab.
   Willst du als Firma statt als Privatperson veröffentlichen, brauchst du eine D-U-N-S-Nummer (kostenlos, dauert ein paar Tage).
 - Ein kostenloses Konto auf [expo.dev](https://expo.dev).
 
@@ -122,8 +123,6 @@ Danach geht es in [App Store Connect](https://appstoreconnect.apple.com) weiter:
 1. Die App erscheint zuerst in **TestFlight**. Damit kannst du sie mit Freunden testen.
 2. Fülle unter **App Store** die Beschreibung, die Screenshots und die Pflichtangaben aus (Checkliste unten).
 3. Klicke auf **Zur Prüfung einreichen**. Die Prüfung dauert meistens 1–3 Tage.
-
-**Android / Google Play** (einmalig 25 $): `npx eas-cli@latest build --platform android` und danach `submit`.
 
 ### Checkliste für die Apple-Prüfung
 - [ ] **Bundle ID** in `app.json` anpassen (z. B. `de.deinname.stadthelfer`), sie muss weltweit eindeutig sein.
