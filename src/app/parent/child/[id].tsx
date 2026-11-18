@@ -1,87 +1,89 @@
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Text } from 'react-native';
-import JobCard from '@/components/JobCard';
-import { Badge, Banner, Button, Card, Empty, H2, Loading, P, Screen, colors } from '@/components/ui';
+import ChildJobCard from '@/components/ChildJobCard';
+import { CONSENT_BADGE } from '@/components/start/ParentStart';
+import { Badge, Banner, Button, Card, Empty, H2, Loading, P, Screen } from '@/components/ui';
+import { useProfile } from '@/lib/auth';
 import { confirm, notify } from '@/lib/dialog';
-import { ageOn, categoryLabel, formatPrice, fromIsoDate, workRuleFor } from '@/lib/rules';
-import { errorText, supabase } from '@/lib/supabase';
-import type { Job, Offer, Profile } from '@/lib/types';
+import { errorMessage, useI18n } from '@/lib/i18n';
+import { SERVICE_ICON, ageOn, formatPriceRange, fromIsoDate, serviceKey, workRuleFor, type Service } from '@/lib/rules';
+import { supabase } from '@/lib/supabase';
+import type { ChildJob, Offer, Profile } from '@/lib/types';
 
 export default function ChildDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const me = useProfile();
+  const { t, lang } = useI18n();
   const [child, setChild] = useState<Profile | null | undefined>(undefined);
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobs, setJobs] = useState<ChildJob[]>([]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     const [{ data: c }, { data: o }, { data: j }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id).maybeSingle(),
       supabase.from('offers').select('*').eq('student_id', id),
-      supabase.from('jobs').select('*').eq('student_id', id).order('scheduled_start', { ascending: false }),
+      supabase.rpc('child_jobs', { child: id }),
     ]);
     setChild(c as Profile | null);
     setOffers((o ?? []) as Offer[]);
-    setJobs((j ?? []) as Job[]);
+    setJobs((j ?? []) as ChildJob[]);
   }, [id]);
-
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function consent(approved: boolean) {
     const ok = approved
-      ? await confirm('Zustimmung erteilen?',
-          'Ich bin erziehungsberechtigt und erlaube meinem Kind, über StadtHelfer kleine Aufträge anzunehmen. ' +
-          'Ich willige in die Verarbeitung seiner Daten gemäß Datenschutzerklärung ein. Ich kann die Zustimmung jederzeit widerrufen.',
-          'Zustimmen')
-      : await confirm('Zustimmung widerrufen?', 'Das Profil wird sofort unsichtbar und offene Anfragen werden abgelehnt.', 'Widerrufen', true);
+      ? await confirm(t('consent_give'), t('consent_give_q'), t('consent_give'))
+      : await confirm(t('consent_revoke'), t('consent_revoke_q'), t('consent_revoke'), true);
     if (!ok) return;
     setBusy(true);
     const { error } = await supabase.rpc('set_parent_consent', { child: id, approved });
     setBusy(false);
-    if (error) return notify('Fehler', errorText(error));
+    if (error) return notify(t('error'), errorMessage(t, error));
     load();
   }
 
   if (child === undefined) return <Loading />;
-  if (child === null) return <Screen><Empty title="Kein Zugriff" /></Screen>;
+  if (child === null) return <Screen><Empty title={t('not_found')} /></Screen>;
 
   const age = ageOn(fromIsoDate(child.birth_date));
   const rule = workRuleFor(age, child.full_time_school);
+  const badge = CONSENT_BADGE[child.parent_consent];
 
   return (
     <Screen>
       <Card>
         <Text style={{ fontWeight: '800', fontSize: 18 }}>{child.first_name} {child.last_name}, {age}</Text>
         <P muted>{child.postal_code} {child.city}</P>
-        <P>Öffentlich angezeigt als: <Text style={{ fontWeight: '700' }}>{child.first_name} {child.last_name[0]}., {age}</Text></P>
-        {child.parent_consent === 'approved' && <Badge label="Freigegeben" color={colors.success} />}
-        {child.parent_consent === 'pending' && <Badge label="Wartet auf deine Zustimmung" color="#B26A00" />}
-        {child.parent_consent === 'rejected' && <Badge label="Nicht freigegeben" color={colors.danger} />}
-        {rule && <P muted>🛡️ Erlaubte Zeiten: {rule.minHour}–{rule.maxHour} Uhr, max. {rule.maxMinutesPerDay / 60} Std./Tag</P>}
+        <P>{t('shown_as', { name: `${child.first_name} ${child.last_name[0]}., ${age}` })}</P>
+        <Badge label={t(badge.key)} color={badge.color} />
+        {rule && <P muted>🛡️ {t('allowed_times', { min: rule.minHour, max: rule.maxHour, h: rule.maxMinutesPerDay / 60 })}</P>}
       </Card>
 
+      {me.verification_status !== 'verified' && child.parent_consent !== 'approved' && (
+        <Banner tone="warning">
+          <P>{t('ERR_PARENT_VERIFY_FIRST')}</P>
+          <Button title={t('verify_now')} onPress={() => router.push('/verify')} />
+        </Banner>
+      )}
+
       {child.parent_consent === 'approved' ? (
-        <Button title="Zustimmung widerrufen" variant="danger" onPress={() => consent(false)} loading={busy} />
+        <Button title={t('consent_revoke')} variant="danger" onPress={() => consent(false)} loading={busy} />
       ) : child.parent_consent !== 'not_required' ? (
-        <>
-          <Banner>
-            Bitte prüfe das Profil und die Angebote deines Kindes. Mit deiner Zustimmung wird das Profil für verifizierte Auftraggeber sichtbar.
-          </Banner>
-          <Button title="Zustimmen und freigeben" onPress={() => consent(true)} loading={busy} />
-        </>
+        <Button title={t('consent_give')} onPress={() => consent(true)} loading={busy} disabled={me.verification_status !== 'verified'} />
       ) : null}
 
-      <H2>Angebote</H2>
-      {offers.length === 0 ? <P muted>Noch keine Angebote.</P> : offers.map((o) => (
+      <H2>{t('child_jobs')}</H2>
+      {jobs.length === 0 ? <P muted>{t('no_jobs')}</P> : jobs.map((j) => <ChildJobCard key={j.job_id} job={j} onChanged={load} />)}
+
+      <H2>{t('offers')}</H2>
+      {offers.length === 0 ? <P muted>—</P> : offers.map((o) => (
         <Card key={o.id}>
-          <Text style={{ fontWeight: '700' }}>{categoryLabel(o.category)} – {o.title}</Text>
-          <P muted>{formatPrice(o.price_min, o.price_max, o.price_unit)}</P>
+          <Text style={{ fontWeight: '700' }}>{SERVICE_ICON[o.service as Service]} {t(serviceKey(o.service))} – {o.title}</Text>
+          <P muted>{formatPriceRange(o.price_min, o.price_max, lang)} {o.price_unit === 'stunde' ? t('per_hour') : t('per_job')}</P>
         </Card>
       ))}
-
-      <H2>Aufträge</H2>
-      {jobs.length === 0 ? <P muted>Noch keine Aufträge.</P> : jobs.map((j) => <JobCard key={j.id} job={j} />)}
     </Screen>
   );
 }

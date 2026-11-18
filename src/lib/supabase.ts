@@ -28,16 +28,3 @@ if (Platform.OS !== 'web') {
     else supabase.auth.stopAutoRefresh();
   });
 }
-
-/** Wandelt Supabase-/Postgres-Fehler in verständliche Texte um. */
-export function errorText(err: unknown): string {
-  const msg = (err as { message?: string })?.message ?? String(err);
-  if (msg.includes('Invalid login credentials')) return 'E-Mail oder Passwort ist falsch.';
-  if (msg.includes('User already registered')) return 'Diese E-Mail-Adresse ist bereits registriert.';
-  if (msg.includes('Email not confirmed')) return 'Bitte bestätige zuerst deine E-Mail-Adresse (Link im Postfach).';
-  if (msg.includes('Password should be')) return 'Das Passwort muss mindestens 8 Zeichen lang sein.';
-  if (msg.includes('row-level security')) return 'Dafür hast du keine Berechtigung.';
-  if (msg.includes('Network request failed') || msg.includes('Failed to fetch'))
-    return 'Keine Internetverbindung.';
-  return msg;
-}

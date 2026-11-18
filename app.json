@@ -19,7 +19,21 @@
       "output": "single"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-localization",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "StadtHelfer nutzt deinen Standort, um Aufträge in deinem Umkreis zu finden. Dein Standort wird nie anderen angezeigt."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "StadtHelfer braucht Zugriff auf deine Fotos, damit du Bilder von Aufträgen und erledigter Arbeit hochladen kannst.",
+          "cameraPermission": "StadtHelfer braucht die Kamera für Fotos von Aufträgen und für die Ausweis-Prüfung."
+        }
+      ]
     ],
     "scheme": "stadthelfer",
     "experiments": {

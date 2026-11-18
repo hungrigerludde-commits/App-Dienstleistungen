@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Button, ErrorText, Field, Screen } from '@/components/ui';
 import { notify } from '@/lib/dialog';
-import { errorText, supabase } from '@/lib/supabase';
+import { errorMessage, useI18n } from '@/lib/i18n';
+import { supabase } from '@/lib/supabase';
 
 export default function Login() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -14,27 +16,23 @@ export default function Login() {
     setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (error) setError(errorText(error));
-    // Bei Erfolg leitet das Root-Layout automatisch weiter.
+    if (error) setError(errorMessage(t, error));
   }
 
   async function resetPassword() {
-    if (!email.trim()) {
-      setError('Bitte gib zuerst deine E-Mail-Adresse ein.');
-      return;
-    }
+    if (!email.trim()) return setError(t('enter_email_first'));
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
-    if (error) setError(errorText(error));
-    else notify('E-Mail gesendet', 'Wir haben dir einen Link zum Zurücksetzen des Passworts geschickt.');
+    if (error) setError(errorMessage(t, error));
+    else notify(t('reset_sent'));
   }
 
   return (
     <Screen>
-      <Field label="E-Mail" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-      <Field label="Passwort" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
+      <Field label={t('email')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+      <Field label={t('password')} value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
       <ErrorText>{error}</ErrorText>
-      <Button title="Anmelden" onPress={login} loading={busy} />
-      <Button title="Passwort vergessen?" variant="ghost" onPress={resetPassword} />
+      <Button title={t('login')} onPress={login} loading={busy} />
+      <Button title={t('forgot_password')} variant="ghost" onPress={resetPassword} />
     </Screen>
   );
 }

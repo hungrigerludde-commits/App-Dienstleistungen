@@ -1,23 +1,21 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { goBack } from '@/lib/nav';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, Chip, ChipRow, ErrorText, Field, P, Screen } from '@/components/ui';
+import PriceLight from '@/components/PriceLight';
+import ServicePicker from '@/components/ServicePicker';
+import { Button, Chip, ChipRow, ErrorText, Field, H2, Screen } from '@/components/ui';
 import { useProfile } from '@/lib/auth';
 import { confirm } from '@/lib/dialog';
-import { CATEGORIES, CONTACT_WARNING, containsContactData, type Category } from '@/lib/rules';
-import { errorText, supabase } from '@/lib/supabase';
+import { errorMessage, useI18n } from '@/lib/i18n';
+import { ageOn, containsContactData, fromIsoDate, type Service } from '@/lib/rules';
+import { supabase } from '@/lib/supabase';
 
-const PLACEHOLDER: Partial<Record<Category, string>> = {
-  nachhilfe: 'z. B. Mathe & Englisch bis Klasse 8',
-  musik: 'z. B. Gitarre für Anfänger',
-  garten: 'z. B. Rasen mähen & Hecke schneiden',
-  fenster: 'z. B. Fenster putzen innen & außen',
-  einkaufen: 'z. B. Wocheneinkauf für Senioren',
-};
-
+/** Angebot: was der Schüler macht und was er dafür nehmen würde (Preisspanne + Ampel). */
 export default function EditOffer() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const me = useProfile();
-  const [category, setCategory] = useState<Category>('nachhilfe');
+  const { t } = useI18n();
+  const [service, setService] = useState<Service>('rasen');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [min, setMin] = useState('');
@@ -30,7 +28,7 @@ export default function EditOffer() {
     if (!id) return;
     supabase.from('offers').select('*').eq('id', id).single().then(({ data }) => {
       if (!data) return;
-      setCategory(data.category);
+      setService(data.service);
       setTitle(data.title);
       setDescription(data.description ?? '');
       setMin(String(data.price_min));
@@ -39,58 +37,46 @@ export default function EditOffer() {
     });
   }, [id]);
 
+  const pMin = Number(min.replace(',', '.'));
+  const pMax = Number((max || min).replace(',', '.'));
+
   async function save() {
     setError(null);
-    const pMin = Number(min.replace(',', '.'));
-    const pMax = Number((max || min).replace(',', '.'));
-    if (title.trim().length < 3) return setError('Bitte gib einen Titel ein (mind. 3 Zeichen).');
-    if (!min || isNaN(pMin) || isNaN(pMax) || pMin < 0) return setError('Bitte gib einen gültigen Preis ein.');
-    if (pMax < pMin) return setError('Der Höchstpreis muss größer als der Mindestpreis sein.');
-    if (pMax > 200) return setError('Der Preis darf höchstens 200 € betragen.');
-    if (containsContactData(title) || containsContactData(description)) return setError(CONTACT_WARNING);
-
-    const row = {
-      student_id: me.id, category, title: title.trim(), description: description.trim() || null,
-      price_min: pMin, price_max: pMax, price_unit: unit,
-    };
+    if (title.trim().length < 3) return setError(t('err_title'));
+    if (!min || isNaN(pMin) || isNaN(pMax) || pMin < 0 || pMax > 200) return setError(t('err_price'));
+    if (pMax < pMin) return setError(t('err_price_order'));
+    if (containsContactData(title) || containsContactData(description)) return setError(t('ERR_CONTACT_DATA'));
+    const row = { student_id: me.id, service, title: title.trim(), description: description.trim() || null, price_min: pMin, price_max: pMax, price_unit: unit };
     setBusy(true);
-    const { error } = id
-      ? await supabase.from('offers').update(row).eq('id', id)
-      : await supabase.from('offers').insert(row);
+    const { error } = id ? await supabase.from('offers').update(row).eq('id', id) : await supabase.from('offers').insert(row);
     setBusy(false);
-    if (error) return setError(errorText(error));
-    router.back();
+    if (error) return setError(errorMessage(t, error));
+    goBack();
   }
 
   async function remove() {
-    if (!(await confirm('Angebot löschen?', 'Das Angebot wird entfernt.', 'Löschen', true))) return;
+    if (!(await confirm(t('delete_offer_q'), '', t('delete'), true))) return;
     await supabase.from('offers').delete().eq('id', id!);
-    router.back();
+    goBack();
   }
 
   return (
     <Screen>
-      <P style={{ fontWeight: '600' }}>Kategorie</P>
+      <H2>{t('service')}</H2>
+      <ServicePicker value={service} onChange={setService} hideAdultOnly={ageOn(fromIsoDate(me.birth_date)) < 18} />
+      <Field label={t('title')} value={title} onChangeText={setTitle} placeholder={t('offer_title_ph')} maxLength={80} />
+      <Field label={`${t('description')} ${t('optional')}`} value={description} onChangeText={setDescription} multiline placeholder={t('offer_desc_ph')} />
+      <H2>{t('price_student_label')}</H2>
       <ChipRow>
-        {CATEGORIES.map((c) => (
-          <Chip key={c.key} label={`${c.icon} ${c.label}`} selected={category === c.key} onPress={() => setCategory(c.key)} />
-        ))}
+        <Chip label={t('per_hour_long')} selected={unit === 'stunde'} onPress={() => setUnit('stunde')} />
+        <Chip label={t('per_job_long')} selected={unit === 'auftrag'} onPress={() => setUnit('auftrag')} />
       </ChipRow>
-      <Field label="Titel" value={title} onChangeText={setTitle} placeholder={PLACEHOLDER[category] ?? 'Was bietest du an?'} maxLength={80} />
-      <Field label="Beschreibung (optional)" value={description} onChangeText={setDescription} multiline
-        placeholder="Was kannst du besonders gut? Welche Erfahrung hast du?" />
-
-      <P style={{ fontWeight: '600' }}>Preis</P>
-      <ChipRow>
-        <Chip label="pro Stunde" selected={unit === 'stunde'} onPress={() => setUnit('stunde')} />
-        <Chip label="pro Auftrag" selected={unit === 'auftrag'} onPress={() => setUnit('auftrag')} />
-      </ChipRow>
-      <Field label="Von (€)" value={min} onChangeText={setMin} keyboardType="decimal-pad" placeholder="z. B. 8" />
-      <Field label="Bis (€)" value={max} onChangeText={setMax} keyboardType="decimal-pad" placeholder="z. B. 12" hint="Leer lassen für einen Festpreis." />
-
+      <Field label={t('price_from')} value={min} onChangeText={setMin} keyboardType="decimal-pad" />
+      <Field label={t('price_to')} value={max} onChangeText={setMax} keyboardType="decimal-pad" hint={t('price_fixed_hint')} />
+      {pMin > 0 && <PriceLight service={service} min={pMin} max={pMax} unit={unit} showReference />}
       <ErrorText>{error}</ErrorText>
-      <Button title="Speichern" onPress={save} loading={busy} />
-      {id && <Button title="Angebot löschen" variant="ghost" onPress={remove} />}
+      <Button title={t('save')} onPress={save} loading={busy} />
+      {id && <Button title={t('delete')} variant="ghost" onPress={remove} />}
     </Screen>
   );
 }

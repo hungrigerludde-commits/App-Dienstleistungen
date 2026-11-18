@@ -1,26 +1,64 @@
 // Reine Logik ohne Abhängigkeiten – wird auch in Node-Tests verwendet.
 // Die gleichen Regeln prüft die Datenbank noch einmal (siehe supabase/migrations).
 
-export type Category =
-  | 'nachhilfe' | 'musik' | 'garten' | 'fenster' | 'einkaufen'
-  | 'haushalt' | 'haustiere' | 'technik' | 'babysitting' | 'sonstiges';
+import type { StringKey } from './strings';
 
-export const CATEGORIES: { key: Category; label: string; icon: string }[] = [
-  { key: 'nachhilfe', label: 'Nachhilfe', icon: '📚' },
-  { key: 'musik', label: 'Musikunterricht', icon: '🎸' },
-  { key: 'garten', label: 'Garten (Rasen, Hecke)', icon: '🌿' },
-  { key: 'fenster', label: 'Fenster putzen', icon: '🪟' },
-  { key: 'einkaufen', label: 'Einkäufe', icon: '🛒' },
-  { key: 'haushalt', label: 'Haushaltshilfe', icon: '🧹' },
-  { key: 'haustiere', label: 'Haustiere / Gassi', icon: '🐕' },
-  { key: 'technik', label: 'Handy- & PC-Hilfe', icon: '💻' },
-  { key: 'babysitting', label: 'Babysitting', icon: '🧸' },
-  { key: 'sonstiges', label: 'Sonstiges', icon: '✨' },
+// ---------------------------------------------------------------- Leistungen
+
+export type Service =
+  | 'rasen' | 'unkraut' | 'hecke' | 'fenster' | 'nachhilfe' | 'tanzen' | 'yoga' | 'sport'
+  | 'instrument' | 'einkaufen' | 'gassi' | 'babysitting' | 'tagesmutter' | 'senioren';
+
+export type Category = 'garten' | 'reinigung' | 'unterricht' | 'einkaufen' | 'haustiere' | 'kinder' | 'senioren';
+
+export const CATEGORIES: { key: Category; icon: string; services: Service[] }[] = [
+  { key: 'garten', icon: '🌿', services: ['rasen', 'unkraut', 'hecke'] },
+  { key: 'reinigung', icon: '🪟', services: ['fenster'] },
+  { key: 'unterricht', icon: '🎓', services: ['nachhilfe', 'tanzen', 'yoga', 'sport', 'instrument'] },
+  { key: 'einkaufen', icon: '🛒', services: ['einkaufen'] },
+  { key: 'haustiere', icon: '🐕', services: ['gassi'] },
+  { key: 'kinder', icon: '🧸', services: ['babysitting', 'tagesmutter'] },
+  { key: 'senioren', icon: '👵', services: ['senioren'] },
 ];
 
-export function categoryLabel(key: string): string {
-  const c = CATEGORIES.find((x) => x.key === key);
-  return c ? `${c.icon} ${c.label}` : key;
+export const SERVICE_ICON: Record<Service, string> = {
+  rasen: '🌱', unkraut: '🌾', hecke: '🌳', fenster: '🪟', nachhilfe: '📚', tanzen: '💃', yoga: '🧘',
+  sport: '⚽', instrument: '🎸', einkaufen: '🛒', gassi: '🐕', babysitting: '🧸', tagesmutter: '🏠', senioren: '👵',
+};
+
+export const serviceKey = (s: string) => `svc_${s}` as StringKey;
+export const categoryKey = (c: string) => `cat_${c}` as StringKey;
+
+/** Übliche Stundensätze (Richtwerte für die Ampel), in €. Bei Bedarf anpassen. */
+export const REFERENCE_PRICE: Record<Service, [number, number]> = {
+  rasen: [10, 15], unkraut: [10, 14], hecke: [12, 18], fenster: [10, 15],
+  nachhilfe: [10, 20], tanzen: [10, 20], yoga: [10, 20], sport: [10, 20], instrument: [12, 25],
+  einkaufen: [8, 12], gassi: [8, 12], babysitting: [10, 14], tagesmutter: [8, 14], senioren: [10, 15],
+};
+
+export type PriceRating = 'fair' | 'low' | 'high';
+
+/**
+ * Ampel: Ist die Preisspanne angemessen?
+ *  grün  = Mittelwert liegt im üblichen Bereich
+ *  gelb  = leicht darunter/darüber
+ *  rot   = deutlich darunter/darüber
+ * Bei Preisen „pro Auftrag“ wird über die Dauer in einen Stundensatz umgerechnet (falls bekannt).
+ */
+export function ratePrice(
+  service: string, min: number, max: number, unit: string, durationMinutes?: number,
+): { rating: PriceRating; color: 'green' | 'yellow' | 'red'; ref: [number, number] } | null {
+  const ref = REFERENCE_PRICE[service as Service];
+  if (!ref || !(max >= min) || max <= 0) return null;
+  let mid = (min + max) / 2;
+  if (unit === 'auftrag') {
+    if (!durationMinutes) return null;
+    mid = mid / (durationMinutes / 60);
+  }
+  const [lo, hi] = ref;
+  if (mid >= lo && mid <= hi) return { rating: 'fair', color: 'green', ref };
+  if (mid < lo) return { rating: 'low', color: mid >= lo * 0.75 ? 'yellow' : 'red', ref };
+  return { rating: 'high', color: mid <= hi * 1.3 ? 'yellow' : 'red', ref };
 }
 
 export function ageOn(birthDate: Date, at: Date = new Date()): number {
@@ -55,19 +93,31 @@ export function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-export function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString('de-DE', {
+export function formatDateTime(iso: string, lang: 'de' | 'en' = 'de'): string {
+  return new Date(iso).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB', {
     weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin',
   });
 }
 
-export function formatPrice(min: number, max: number, unit: string): string {
-  const f = (n: number) => n.toLocaleString('de-DE', { maximumFractionDigits: 2 });
-  const range = min === max ? `${f(min)} €` : `${f(min)}–${f(max)} €`;
-  return unit === 'stunde' ? `${range} / Std.` : `${range} pro Auftrag`;
+export function formatMoney(n: number, lang: 'de' | 'en' = 'de'): string {
+  return n.toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
 }
+
+/** z. B. "8–12 €" (Einheit separat übersetzen) */
+export function formatPriceRange(min: number, max: number, lang: 'de' | 'en' = 'de'): string {
+  return min === max ? `${formatMoney(min, lang)} €` : `${formatMoney(min, lang)}–${formatMoney(max, lang)} €`;
+}
+
+/** Entfernung in km (Haversine) */
+export function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const r = (d: number) => (d * Math.PI) / 180;
+  const a = Math.sin(r(lat2 - lat1) / 2) ** 2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lng2 - lng1) / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(a));
+}
+
+export const RADIUS_OPTIONS = [1, 2, 5, 10, 20, 50];
+export const DURATIONS = [30, 60, 90, 120, 180, 240];
 
 const EMAIL_RE = /[a-z0-9._%+-]+\s*(@|\(at\)|\[at\])\s*[a-z0-9.-]+\.[a-z]{2,}/i;
 const MESSENGER_RE = /(whats\s*app|telegram|snap\s*chat|instagram|insta:|signal\s*:)/i;
@@ -79,8 +129,6 @@ export function containsContactData(text: string | null | undefined): boolean {
   return EMAIL_RE.test(text) || /(\+|00)?\d{9,}/.test(digits) || MESSENGER_RE.test(text);
 }
 
-export const CONTACT_WARNING =
-  'Aus Sicherheitsgründen sind Telefonnummern, E-Mail-Adressen und Messenger-Namen nicht erlaubt. Bitte nutzt den Chat in der App.';
 
 export type WorkRule = { minHour: number; maxHour: number; maxMinutesPerDay: number } | null;
 
@@ -96,7 +144,7 @@ export function workRuleFor(age: number, fullTimeSchool: boolean): WorkRule {
   return { minHour: 6, maxHour: 20, maxMinutesPerDay: 480 };
 }
 
-/** Gibt eine Fehlermeldung zurück oder null, wenn der Termin erlaubt ist (deutsche Uhrzeit). */
+/** Gibt einen Fehlercode (ERR_…) zurück oder null, wenn der Termin erlaubt ist (deutsche Uhrzeit). */
 export function checkWorkTime(rule: WorkRule, start: Date, minutes: number): string | null {
   if (!rule) return null;
   const s = berlinParts(start);
@@ -104,10 +152,10 @@ export function checkWorkTime(rule: WorkRule, start: Date, minutes: number): str
   const startH = s.hour + s.minute / 60;
   const endH = e.hour + e.minute / 60 + (e.day !== s.day ? 24 : 0);
   if (startH < rule.minHour || endH > rule.maxHour) {
-    return `Jugendschutz: Dieser Schüler darf nur zwischen ${rule.minHour} und ${rule.maxHour} Uhr arbeiten.`;
+    return `ERR_WORK_HOURS:${rule.minHour}:${rule.maxHour}`;
   }
   if (minutes > rule.maxMinutesPerDay) {
-    return `Jugendschutz: Maximal ${rule.maxMinutesPerDay / 60} Stunden pro Tag.`;
+    return `ERR_WORK_MINUTES:${rule.maxMinutesPerDay}:0`;
   }
   return null;
 }
@@ -136,28 +184,12 @@ export function berlinTime(year: number, month: number, day: number, hour: numbe
   return new Date(guess);
 }
 
-export const JOB_STATUS: Record<string, { label: string; color: string }> = {
-  requested: { label: 'Angefragt', color: '#B26A00' },
-  accepted: { label: 'Zugesagt', color: '#1B7F3B' },
-  declined: { label: 'Abgelehnt', color: '#9A1C1C' },
-  cancelled: { label: 'Abgesagt', color: '#6B6B6B' },
-  completed: { label: 'Erledigt', color: '#1F4FB2' },
+export const JOB_STATUS_COLOR: Record<string, string> = {
+  requested: '#B26A00', accepted: '#1B7F3B', declined: '#9A1C1C', cancelled: '#6B6B6B', completed: '#1F4FB2',
 };
 
-export const PAYMENT_METHODS: { key: string; label: string }[] = [
-  { key: 'bar', label: 'Bar' },
-  { key: 'paypal', label: 'PayPal' },
-  { key: 'ueberweisung', label: 'Überweisung' },
-];
-
-export const REPORT_REASONS: { key: string; label: string }[] = [
-  { key: 'belaestigung', label: 'Belästigung' },
-  { key: 'unangemessen', label: 'Unangemessenes Verhalten' },
-  { key: 'gefahr', label: 'Ich fühle mich nicht sicher' },
-  { key: 'betrug', label: 'Betrug / nicht bezahlt' },
-  { key: 'fake_profil', label: 'Falsches Profil' },
-  { key: 'sonstiges', label: 'Sonstiges' },
-];
+export const PAYMENT_METHODS = ['paypal', 'bank', 'vivid', 'visa'] as const;
+export const REPORT_REASONS = ['belaestigung', 'unangemessen', 'gefahr', 'betrug', 'fake_profil', 'sonstiges'] as const;
 
 /** "2010-05-05" → lokales Datum (ohne Zeitzonen-Verschiebung) */
 export function fromIsoDate(s: string): Date {

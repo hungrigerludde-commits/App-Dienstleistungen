@@ -1,20 +1,20 @@
 import { Tabs } from 'expo-router/js-tabs';
 import { Text } from 'react-native';
 import { colors } from '@/components/ui';
-import { useProfile } from '@/lib/auth';
+import { useI18n } from '@/lib/i18n';
 
-// Startseite des Tab-Bereichs (wichtig für Weiterleitung nach Login)
 export const unstable_settings = { initialRouteName: 'index' };
 
-const icon = (emoji: string) => ({ focused }: { focused: boolean }) => (
-  <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>
-);
+function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
+  return <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.45 }}>{emoji}</Text>;
+}
+const icon = (emoji: string) => function Icon({ focused }: { focused: boolean }) {
+  return <TabIcon emoji={emoji} focused={focused} />;
+};
 
+/** Vier Reiter wie bei Instagram: Start, Karte, Chats, Profil. */
 export default function TabsLayout() {
-  const profile = useProfile();
-  const homeTitle = { student: 'Mein Profil', client: 'Suchen', parent: 'Meine Kinder' }[profile.role];
-  const homeIcon = { student: '🎒', client: '🔎', parent: '👪' }[profile.role];
-
+  const { t } = useI18n();
   return (
     <Tabs
       screenOptions={{
@@ -23,9 +23,10 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: homeTitle, tabBarIcon: icon(homeIcon) }} />
-      <Tabs.Screen name="jobs" options={{ title: 'Aufträge', tabBarIcon: icon('📋') }} />
-      <Tabs.Screen name="account" options={{ title: 'Konto', tabBarIcon: icon('⚙️') }} />
+      <Tabs.Screen name="index" options={{ title: t('tab_start'), tabBarIcon: icon('🏠') }} />
+      <Tabs.Screen name="map" options={{ title: t('tab_map'), tabBarIcon: icon('🗺️') }} />
+      <Tabs.Screen name="chats" options={{ title: t('tab_chats'), tabBarIcon: icon('💬') }} />
+      <Tabs.Screen name="profile" options={{ title: t('tab_profile'), tabBarIcon: icon('👤') }} />
     </Tabs>
   );
 }

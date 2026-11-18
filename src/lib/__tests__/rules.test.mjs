@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ageOn, berlinTime, berlinParts, parseGermanDate, parseTime, containsContactData, workRuleFor, checkWorkTime, formatPrice,
+  ageOn, berlinTime, berlinParts, parseGermanDate, parseTime, containsContactData, workRuleFor, checkWorkTime, formatPriceRange, ratePrice, distanceKm,
 } from '../rules.ts';
 
 test('Alter', () => {
@@ -29,16 +29,31 @@ test('Kontaktdaten erkennen', () => {
 test('Jugendschutz-Regeln', () => {
   const child = workRuleFor(14, true);
   assert.equal(checkWorkTime(child, berlinTime(2026, 11, 20, 10, 0), 90), null);
-  assert.match(checkWorkTime(child, berlinTime(2026, 11, 20, 17, 30), 60), /8 und 18/);
-  assert.match(checkWorkTime(child, berlinTime(2026, 11, 20, 9, 0), 180), /Maximal 2/);
+  assert.match(checkWorkTime(child, berlinTime(2026, 11, 20, 17, 30), 60), /ERR_WORK_HOURS:8:18/);
+  assert.match(checkWorkTime(child, berlinTime(2026, 11, 20, 9, 0), 180), /ERR_WORK_MINUTES:120/);
   const teen = workRuleFor(16, false);
   assert.equal(checkWorkTime(teen, berlinTime(2026, 11, 20, 18, 0), 120), null);
   assert.equal(workRuleFor(18, true), null);
 });
 
 test('Preisformat', () => {
-  assert.equal(formatPrice(8, 12, 'stunde'), '8–12 € / Std.');
-  assert.equal(formatPrice(20, 20, 'auftrag'), '20 € pro Auftrag');
+  assert.equal(formatPriceRange(8, 12), '8–12 €');
+  assert.equal(formatPriceRange(20, 20), '20 €');
+});
+
+test('Preis-Ampel', () => {
+  assert.equal(ratePrice('rasen', 10, 14, 'stunde').color, 'green');
+  assert.equal(ratePrice('rasen', 8, 9, 'stunde').color, 'yellow');
+  assert.equal(ratePrice('rasen', 3, 4, 'stunde').rating, 'low');
+  assert.equal(ratePrice('rasen', 3, 4, 'stunde').color, 'red');
+  assert.equal(ratePrice('nachhilfe', 40, 50, 'stunde').color, 'red');
+  assert.equal(ratePrice('hecke', 30, 30, 'auftrag', 120).color, 'green'); // 15 €/h
+  assert.equal(ratePrice('hecke', 30, 30, 'auftrag'), null);
+});
+
+test('Entfernung', () => {
+  const d = distanceKm(52.52, 13.405, 52.53, 13.42);
+  assert.ok(d > 1.3 && d < 1.6, String(d));
 });
 
 test('Deutsche Zeit unabhängig von Gerätezeitzone (Winter- und Sommerzeit)', () => {

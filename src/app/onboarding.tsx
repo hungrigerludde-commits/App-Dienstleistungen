@@ -3,18 +3,21 @@ import { useState } from 'react';
 import { Switch, Text, View } from 'react-native';
 import { Banner, Button, Card, ErrorText, Field, H2, P, Row, Screen, colors } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { errorMessage, useI18n } from '@/lib/i18n';
 import { ageOn, parseGermanDate, toIsoDate } from '@/lib/rules';
-import { errorText, supabase } from '@/lib/supabase';
+import type { StringKey } from '@/lib/strings';
+import { supabase } from '@/lib/supabase';
 import type { Role } from '@/lib/types';
 
-const ROLES: { key: Role; title: string; text: string; icon: string }[] = [
-  { key: 'student', title: 'Ich bin Schüler/in', text: 'Ich möchte helfen und Geld verdienen (ab 14 Jahren).', icon: '🎒' },
-  { key: 'client', title: 'Ich suche Hilfe', text: 'Ich möchte Schüler für Aufgaben buchen (ab 18 Jahren).', icon: '🏡' },
-  { key: 'parent', title: 'Ich bin Elternteil', text: 'Ich möchte das Konto meines Kindes freigeben und begleiten.', icon: '👪' },
+const ROLES: { key: Role; title: StringKey; text: StringKey; icon: string }[] = [
+  { key: 'student', title: 'role_student', text: 'role_student_text', icon: '🎒' },
+  { key: 'client', title: 'role_client', text: 'role_client_text', icon: '🏡' },
+  { key: 'parent', title: 'role_parent', text: 'role_parent_text', icon: '👪' },
 ];
 
 export default function Onboarding() {
   const { session, refreshProfile, signOut } = useAuth();
+  const { t, lang } = useI18n();
   const [role, setRole] = useState<Role | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -30,19 +33,19 @@ export default function Onboarding() {
   if (!role) {
     return (
       <Screen>
-        <H2>Wer bist du?</H2>
+        <H2>{t('who_are_you')}</H2>
         {ROLES.map((r) => (
           <Card key={r.key} onPress={() => setRole(r.key)}>
             <Row>
-              <Text style={{ fontSize: 32 }}>{r.icon}</Text>
+              <Text style={{ fontSize: 34 }}>{r.icon}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '700', fontSize: 16 }}>{r.title}</Text>
-                <P muted>{r.text}</P>
+                <Text style={{ fontWeight: '700', fontSize: 17 }}>{t(r.title)}</Text>
+                <P muted>{t(r.text)}</P>
               </View>
             </Row>
           </Card>
         ))}
-        <Button title="Abmelden" variant="ghost" onPress={signOut} />
+        <Button title={t('logout')} variant="ghost" onPress={signOut} />
       </Screen>
     );
   }
@@ -50,15 +53,15 @@ export default function Onboarding() {
   async function save() {
     setError(null);
     const birthDate = parseGermanDate(birth);
-    if (!firstName.trim() || !lastName.trim()) return setError('Bitte gib Vor- und Nachnamen ein.');
-    if (!birthDate) return setError('Bitte gib dein Geburtsdatum im Format TT.MM.JJJJ ein.');
+    if (!firstName.trim() || !lastName.trim()) return setError(t('err_name'));
+    if (!birthDate) return setError(t('err_birth'));
     const age = ageOn(birthDate);
-    if (role === 'student' && age < 14) return setError('Du musst mindestens 14 Jahre alt sein.');
-    if (role !== 'student' && age < 18) return setError('Auftraggeber und Eltern müssen volljährig sein.');
-    if (!/^\d{5}$/.test(plz.trim())) return setError('Bitte gib eine gültige Postleitzahl (5 Ziffern) ein.');
-    if (!city.trim()) return setError('Bitte gib deine Stadt ein.');
-    if (role === 'client' && phone.trim().length < 6) return setError('Bitte gib eine Telefonnummer für die Verifizierung an.');
-    if (!terms) return setError('Bitte akzeptiere die Nutzungsbedingungen und die Datenschutzerklärung.');
+    if (role === 'student' && age < 14) return setError(t('ERR_MIN_AGE_14'));
+    if (role !== 'student' && age < 18) return setError(t('ERR_MIN_AGE_18'));
+    if (!/^\d{5}$/.test(plz.trim())) return setError(t('err_plz'));
+    if (!city.trim()) return setError(t('err_city'));
+    if (role !== 'student' && phone.trim().length < 6) return setError(t('err_phone'));
+    if (!terms) return setError(t('err_terms'));
 
     setBusy(true);
     const { error } = await supabase.from('profiles').insert({
@@ -70,49 +73,36 @@ export default function Onboarding() {
       phone: phone.trim() || null,
       city: city.trim(),
       postal_code: plz.trim(),
+      language: lang,
       full_time_school: role === 'student' ? fullTimeSchool : true,
       accepted_terms_at: new Date().toISOString(),
     });
     setBusy(false);
-    if (error) return setError(errorText(error));
+    if (error) return setError(errorMessage(t, error));
     await refreshProfile();
   }
 
-  const isStudent = role === 'student';
-
   return (
     <Screen>
-      <Button title="← Andere Rolle wählen" variant="ghost" onPress={() => setRole(null)} />
-      <H2>{ROLES.find((r) => r.key === role)!.title}</H2>
+      <Button title={t('choose_other_role')} variant="ghost" onPress={() => setRole(null)} />
+      <H2>{t(ROLES.find((r) => r.key === role)!.title)}</H2>
+      {role === 'student' && <Banner>{t('public_name_hint')}</Banner>}
 
-      {isStudent && (
-        <Banner>
-          Öffentlich sichtbar sind nur dein Vorname, der erste Buchstabe deines Nachnamens und dein Alter
-          (z. B. „Lena M., 15“). Dein voller Name ist nur für dich, deine Eltern und das Moderationsteam sichtbar.
-        </Banner>
-      )}
-
-      <Field label="Vorname" value={firstName} onChangeText={setFirstName} autoComplete="given-name" />
-      <Field label="Nachname" value={lastName} onChangeText={setLastName} autoComplete="family-name" />
-      <Field label="Geburtsdatum" value={birth} onChangeText={setBirth} placeholder="TT.MM.JJJJ" keyboardType="numbers-and-punctuation" />
-      <Field label="Postleitzahl" value={plz} onChangeText={setPlz} keyboardType="number-pad" maxLength={5} />
-      <Field label="Stadt" value={city} onChangeText={setCity} autoComplete="postal-address-locality" />
+      <Field label={t('first_name')} value={firstName} onChangeText={setFirstName} autoComplete="given-name" />
+      <Field label={t('last_name')} value={lastName} onChangeText={setLastName} autoComplete="family-name" />
+      <Field label={t('birth_date')} value={birth} onChangeText={setBirth} placeholder={lang === 'de' ? 'TT.MM.JJJJ' : 'DD.MM.YYYY'} keyboardType="numbers-and-punctuation" />
+      <Field label={t('postal_code')} value={plz} onChangeText={setPlz} keyboardType="number-pad" maxLength={5} />
+      <Field label={t('city')} value={city} onChangeText={setCity} />
       {role !== 'student' && (
-        <Field
-          label={role === 'client' ? 'Telefonnummer (für die Verifizierung)' : 'Telefonnummer (optional)'}
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          hint="Wird nie öffentlich angezeigt."
-        />
+        <Field label={t('phone')} value={phone} onChangeText={setPhone} keyboardType="phone-pad" hint={t('phone_hint')} />
       )}
 
-      {isStudent && (
+      {role === 'student' && (
         <Card>
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: '600' }}>Ich gehe noch zur Schule (vollzeitschulpflichtig)</Text>
-              <P muted>Dann gelten strengere Jugendschutz-Zeiten: nur 8–18 Uhr, max. 2 Std. pro Tag.</P>
+              <Text style={{ fontWeight: '600' }}>{t('full_time_school')}</Text>
+              <P muted>{t('full_time_school_hint')}</P>
             </View>
             <Switch value={fullTimeSchool} onValueChange={setFullTimeSchool} />
           </Row>
@@ -122,21 +112,17 @@ export default function Onboarding() {
       <Card>
         <Row style={{ justifyContent: 'space-between' }}>
           <Text style={{ flex: 1 }}>
-            Ich akzeptiere die{' '}
-            <Text style={{ color: colors.primary }} onPress={() => router.push('/legal/terms')}>Nutzungsbedingungen</Text>
-            {' '}und die{' '}
-            <Text style={{ color: colors.primary }} onPress={() => router.push('/legal/privacy')}>Datenschutzerklärung</Text>.
+            {t('accept_terms_1')}
+            <Text style={{ color: colors.primary }} onPress={() => router.push('/legal/terms')}>{t('terms')}</Text>
+            {t('and_the')}
+            <Text style={{ color: colors.primary }} onPress={() => router.push('/legal/privacy')}>{t('privacy')}</Text>.
           </Text>
           <Switch value={terms} onValueChange={setTerms} />
         </Row>
       </Card>
 
-      {isStudent && (
-        <P muted>Unter 18? Nach dem Speichern bekommst du einen Code für deine Eltern. Erst wenn sie zustimmen, ist dein Profil sichtbar.</P>
-      )}
-
       <ErrorText>{error}</ErrorText>
-      <Button title="Profil speichern" onPress={save} loading={busy} />
+      <Button title={t('save_profile')} onPress={save} loading={busy} />
     </Screen>
   );
 }

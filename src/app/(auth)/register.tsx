@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Banner, Button, ErrorText, Field, P, Screen } from '@/components/ui';
-import { errorText, supabase } from '@/lib/supabase';
+import { Banner, Button, ErrorText, Field, Screen } from '@/components/ui';
+import { errorMessage, useI18n } from '@/lib/i18n';
+import { supabase } from '@/lib/supabase';
 
 export default function Register() {
+  const { t } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
@@ -12,34 +14,24 @@ export default function Register() {
 
   async function register() {
     setError(null);
-    if (password.length < 8) return setError('Das Passwort muss mindestens 8 Zeichen lang sein.');
-    if (password !== password2) return setError('Die Passwörter stimmen nicht überein.');
+    if (password.length < 8) return setError(t('password_short'));
+    if (password !== password2) return setError(t('passwords_differ'));
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
     setBusy(false);
-    if (error) return setError(errorText(error));
-    // Ist E-Mail-Bestätigung aktiv, gibt es noch keine Session.
+    if (error) return setError(errorMessage(t, error));
     if (!data.session) setSent(true);
   }
 
-  if (sent) {
-    return (
-      <Screen>
-        <Banner tone="success">
-          Fast geschafft! Wir haben dir eine E-Mail geschickt. Klicke auf den Link darin und melde dich danach an.
-        </Banner>
-      </Screen>
-    );
-  }
+  if (sent) return <Screen><Banner tone="success">{t('confirm_email_sent')}</Banner></Screen>;
 
   return (
     <Screen>
-      <P muted>Im nächsten Schritt legst du dein Profil an und wählst, ob du Schüler, Auftraggeber oder Elternteil bist.</P>
-      <Field label="E-Mail" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-      <Field label="Passwort" value={password} onChangeText={setPassword} secureTextEntry hint="Mindestens 8 Zeichen" autoComplete="new-password" />
-      <Field label="Passwort wiederholen" value={password2} onChangeText={setPassword2} secureTextEntry autoComplete="new-password" />
+      <Field label={t('email')} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+      <Field label={t('password')} value={password} onChangeText={setPassword} secureTextEntry hint={t('password_hint')} autoComplete="new-password" />
+      <Field label={t('password_repeat')} value={password2} onChangeText={setPassword2} secureTextEntry autoComplete="new-password" />
       <ErrorText>{error}</ErrorText>
-      <Button title="Konto erstellen" onPress={register} loading={busy} />
+      <Button title={t('create_account')} onPress={register} loading={busy} />
     </Screen>
   );
 }
